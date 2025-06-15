@@ -835,6 +835,164 @@ class TestDocType(IntegrationTestCase):
 		self.assertEqual(get_format(compressed_dt), "COMPRESSED")
 		self.assertEqual(get_format(dynamic_dt), "DYNAMIC")
 
+	def test_crud_on_non_virtual_parent_with_virtual_child(self):
+		from frappe.tests.test_virtual_doctype_controller import TestVirtualController
+
+		# 0. Ensure controller data is clean before starting
+		TestVirtualController.clear_data()
+
+		# 1. Define DocTypes
+		# Non-virtual Parent DocType
+		parent_dt_name = "_TestNVParentWithVChild"
+		child_dt_name = "_TestVChildForNVParent"
+		table_field_name = "virtual_child_table"
+
+		frappe.delete_doc_if_exists("DocType", parent_dt_name)
+		frappe.delete_doc_if_exists("DocType", child_dt_name)
+		frappe.db.commit() # Ensure DocTypes are deleted before creating new ones in the same test run
+
+		parent_doctype = new_doctype(
+			parent_dt_name,
+			fields=[
+				{"label": "Parent Field 1", "fieldname": "parent_field_1", "fieldtype": "Data"},
+			],
+		)
+		parent_doctype.insert(ignore_permissions=True)
+
+		# Virtual Child DocType
+		child_doctype = new_doctype(
+			child_dt_name,
+			fields=[
+				{"label": "Child Field 1", "fieldname": "child_field_1", "fieldtype": "Data"},
+				{"label": "Child Field 2", "fieldname": "child_field_2", "fieldtype": "Data"},
+			],
+			istable=1,
+			is_virtual=1,
+			controller_name="frappe.tests.test_virtual_doctype_controller.TestVirtualController",
+		)
+		child_doctype.insert(ignore_permissions=True)
+
+		# Add Table field to Parent DocType
+		parent_doctype.append(
+			"fields",
+			{
+				"label": "Virtual Children",
+				"fieldname": table_field_name,
+				"fieldtype": "Table",
+				"options": child_dt_name,
+			},
+		)
+		parent_doctype.save(ignore_permissions=True)
+		frappe.db.commit() # commit doctype changes
+		clear_doctype_cache(parent_dt_name)
+		clear_doctype_cache(child_dt_name)
+
+
+		# 2. Test Create Operation
+		parent_doc = frappe.new_doc(parent_dt_name)
+		parent_doc.parent_field_1 = "Parent Data 1"
+		parent_doc.append(
+			table_field_name,
+			{"child_field_1": "Child Row 1 Data 1", "child_field_2": "Child Row 1 Data 2"},
+		)
+		parent_doc.append(
+			table_field_name,
+			{"child_field_1": "Child Row 2 Data 1", "child_field_2": "Child Row 2 Data 2"},
+		)
+		parent_doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+
+
+		self.assertIsNotNone(parent_doc.name)
+		self.assertEqual(len(TestVirtualController.data_store), 2)
+
+		# Verify data in TestVirtualController.data_store
+		expected_child_data_1 = {
+			"child_field_1": "Child Row 1 Data 1",
+			"child_field_2": "Child Row 1 Data 2",
+			"parent": parent_doc.name,
+			"parenttype": parent_dt_name,
+			"parentfield": table_field_name,
+			"doctype": child_dt_name,
+		}
+		expected_child_data_2 = {
+			"child_field_1": "Child Row 2 Data 1",
+			"child_field_2": "Child Row 2 Data 2",
+			"parent": parent_doc.name,
+			"parenttype": parent_dt_name,
+			"parentfield": table_field_name,
+			"doctype": child_dt_name,
+		}
+
+		# Check names were assigned
+		self.assertTrue(all(d.get("name") for d in TestVirtualController.data_store))
+
+		# Remove 'name' for comparison as it's generated
+		stored_child_1 = {k: v for k, v in TestVirtualController.data_store[0].items() if k != 'name'}
+		stored_child_2 = {k: v for k, v in TestVirtualController.data_store[1].items() if k != 'name'}
+
+		self.assertDictContainsSubset(expected_child_data_1, stored_child_1)
+		self.assertDictContainsSubset(expected_child_data_2, stored_child_2)
+
+
+		# 3. Test Read Operation
+		fetched_parent = frappe.get_doc(parent_dt_name, parent_doc.name)
+		self.assertEqual(fetched_parent.parent_field_1, "Parent Data 1")
+		self.assertEqual(len(fetched_parent.get(table_field_name)), 2)
+		self.assertEqual(
+			fetched_parent.get(table_field_name)[0].child_field_1, "Child Row 1 Data 1"
+		)
+		self.assertEqual(
+			fetched_parent.get(table_field_name)[1].child_field_2, "Child Row 2 Data 2"
+		)
+
+		# 4. Test Update Operation
+		fetched_parent.parent_field_1 = "Parent Data Updated"
+		fetched_parent.get(table_field_name)[0].child_field_1 = "Child Row 1 Updated"
+		# Store name of item to be popped, to check if it's deleted from controller data
+		# popped_child_name = fetched_parent.get(table_field_name)[1].name
+		fetched_parent.get(table_field_name).pop(1)
+		fetched_parent.append(
+			table_field_name,
+			{"child_field_1": "Child Row 3 Data 1", "child_field_2": "Child Row 3 Data 2"},
+		)
+		fetched_parent.save(ignore_permissions=True)
+		frappe.db.commit()
+
+		self.assertEqual(len(TestVirtualController.data_store), 2) # One updated, one new, one removed
+
+		updated_parent = frappe.get_doc(parent_dt_name, parent_doc.name)
+		self.assertEqual(updated_parent.parent_field_1, "Parent Data Updated")
+		self.assertEqual(len(updated_parent.get(table_field_name)), 2)
+		self.assertEqual(
+			updated_parent.get(table_field_name)[0].child_field_1, "Child Row 1 Updated"
+		)
+		self.assertEqual(
+			updated_parent.get(table_field_name)[1].child_field_1, "Child Row 3 Data 1"
+		)
+
+		# Verify controller data state after update
+		# First child should be updated, second one is new. The original second child should be gone.
+		self.assertTrue(any(d.get("child_field_1") == "Child Row 1 Updated" for d in TestVirtualController.data_store))
+		self.assertTrue(any(d.get("child_field_1") == "Child Row 3 Data 1" for d in TestVirtualController.data_store))
+		# self.assertFalse(any(d.get("name") == popped_child_name for d in TestVirtualController.data_store))
+
+
+		# 5. Test Delete Operation
+		frappe.delete_doc(parent_dt_name, parent_doc.name, ignore_permissions=True)
+		frappe.db.commit()
+
+		self.assertEqual(len(TestVirtualController.data_store), 0)
+		self.assertFalse(frappe.db.exists(parent_dt_name, parent_doc.name))
+
+		# 6. Cleanup
+		# DocTypes are deleted by tearDown's rollback if not committed.
+		# If committed (as done above for testing save), explicit deletion is needed.
+		parent_doctype.delete(ignore_permissions=True)
+		child_doctype.delete(ignore_permissions=True)
+		frappe.db.commit()
+		TestVirtualController.clear_data()
+
 
 def new_doctype(
 	name: str | None = None,
