@@ -858,6 +858,7 @@ class TestDocType(IntegrationTestCase):
 			],
 		)
 		parent_doctype.insert(ignore_permissions=True)
+		frappe.reload_doctype(parent_doctype.name, force=True) # Reload after initial insert
 
 		# Virtual Child DocType
 		child_doctype = new_doctype(
@@ -871,9 +872,12 @@ class TestDocType(IntegrationTestCase):
 			controller_name="frappe.tests.test_virtual_doctype_controller.TestVirtualController",
 		)
 		child_doctype.insert(ignore_permissions=True)
+		frappe.reload_doctype(child_doctype.name, force=True) # Reload after initial insert
 
-		# Add Table field to Parent DocType
-		parent_doctype.append(
+
+		# Get fresh instance of parent DocType to add table field
+		parent_dt_doc = frappe.get_doc("DocType", parent_dt_name)
+		parent_dt_doc.append(
 			"fields",
 			{
 				"label": "Virtual Children",
@@ -882,10 +886,14 @@ class TestDocType(IntegrationTestCase):
 				"options": child_dt_name,
 			},
 		)
-		parent_doctype.save(ignore_permissions=True)
-		frappe.db.commit() # commit doctype changes
+		parent_dt_doc.save(ignore_permissions=True) # Save after adding table field
+		frappe.reload_doctype(parent_dt_name, force=True) # Reload parent again
+		frappe.reload_doctype(child_dt_name, force=True) # Reload child as it's linked
+
+		# Ensure caches are cleared after final reloads
 		clear_doctype_cache(parent_dt_name)
 		clear_doctype_cache(child_dt_name)
+		frappe.db.commit() # commit all doctype changes before proceeding
 
 
 		# 2. Test Create Operation
