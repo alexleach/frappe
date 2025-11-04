@@ -131,5 +131,8 @@ autodoc_default_options = {
     'exclude-members': '__weakref__'
 }
 
+# Configure autosummary to show only classes
+autosummary_ignore_module_all = False
+
 # Mock imports for modules that may not be available during doc build
 autodoc_mock_imports = []

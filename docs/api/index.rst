@@ -1,10 +1,11 @@
-API Index
-=========
+API Reference
+=============
 
-This section contains detailed API documentation for the Frappe Framework's major components.
+This section contains detailed API documentation for the Frappe Framework organized by module.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
+   :caption: API Modules
 
    core
    database

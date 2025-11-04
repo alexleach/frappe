@@ -3,16 +3,27 @@ Model API
 
 The model module provides the document model and related functionality.
 
+Model Module
+------------
+
 .. automodule:: frappe.model
    :members:
    :undoc-members:
    :show-inheritance:
-   :inherited-members:
+   :member-order: groupwise
 
-Document Class
---------------
+Document Module
+~~~~~~~~~~~~~~~
 
-.. autoclass:: frappe.model.document.Document
+.. automodule:: frappe.model.document
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Model Utilities
+~~~~~~~~~~~~~~~
+
+.. automodule:: frappe.model.utils
    :members:
    :undoc-members:
    :show-inheritance:

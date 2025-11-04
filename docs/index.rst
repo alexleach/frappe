@@ -8,7 +8,7 @@ and a tightly integrated client side library. Built for ERPNext, it provides a p
 for building business applications.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
    :caption: Contents:
 
    api/index
@@ -32,36 +32,6 @@ Key Features
 * **REST API**: Automatically generated RESTful API for all models
 * **Customizable Forms and Views**: Flexible form and view customization
 * **Report Builder**: Powerful reporting tool for custom reports
-
-API Reference
-=============
-
-Core Modules
-------------
-
-.. autosummary::
-   :toctree: _autosummary
-   :template: custom-module-template.rst
-   :recursive:
-
-   frappe
-
-Main API Components
--------------------
-
-.. toctree::
-   :maxdepth: 2
-
-   api/core
-   api/database
-   api/model
-   api/utils
-   api/auth
-   api/desk
-   api/email
-   api/website
-   api/integrations
-   api/automation
 
 Indices and tables
 ==================
