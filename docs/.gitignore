@@ -1,0 +1,23 @@
+# Sphinx build directory
+_build/
+_autosummary/
+_static/
+_templates/
+
+# Sphinx auto-generated files
+*.doctree
+*.pickle
+*.inv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+.eggs/
+*.egg-info/
+dist/
+build/
