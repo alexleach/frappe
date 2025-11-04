@@ -3,10 +3,46 @@ Database API
 
 The database module handles all database operations and ORM functionality.
 
-Database Module
+Database Core
+-------------
+
+.. automodule:: frappe.database.database
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :member-order: groupwise
+
+Database Query
+--------------
+
+.. automodule:: frappe.database.query
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :member-order: groupwise
+
+Database Manager
+----------------
+
+.. automodule:: frappe.database.db_manager
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :member-order: groupwise
+
+Database Schema
 ---------------
 
-.. automodule:: frappe.database
+.. automodule:: frappe.database.schema
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :member-order: groupwise
+
+Database Utilities
+------------------
+
+.. automodule:: frappe.database.utils
    :members:
    :undoc-members:
    :show-inheritance:
@@ -15,26 +51,20 @@ Database Module
 Database Implementations
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-MariaDB
-^^^^^^^
+MariaDB Implementation
+^^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: frappe.database.mariadb
+.. automodule:: frappe.database.mariadb.database
    :members:
    :undoc-members:
    :show-inheritance:
+   :member-order: groupwise
 
-PostgreSQL  
-^^^^^^^^^^
+PostgreSQL Implementation
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: frappe.database.postgres
+.. automodule:: frappe.database.postgres.database
    :members:
    :undoc-members:
    :show-inheritance:
-
-SQLite
-^^^^^^
-
-.. automodule:: frappe.database.sqlite
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   :member-order: groupwise
