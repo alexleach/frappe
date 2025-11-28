@@ -260,3 +260,77 @@ class TestClient(IntegrationTestCase):
 		# cleanup
 		for doc in docs:
 			frappe.delete_doc("Note", doc)
+
+	def test_patch_request_for_partial_update(self):
+		"""Test PATCH method support for partial updates using set_value"""
+		from frappe.client import set_value
+		from frappe.handler import execute_cmd
+
+		# Create a test document
+		todo = frappe.get_doc(doctype="ToDo", description="original description", priority="Low").insert()
+		original_modified = todo.modified
+
+		frappe.set_user("Administrator")
+		frappe.local.request = frappe._dict()
+		frappe.local.request.method = "PATCH"
+
+		# Test single field update using PATCH
+		frappe.local.form_dict = frappe._dict(
+			{
+				"doctype": "ToDo",
+				"name": todo.name,
+				"fieldname": "description",
+				"value": "updated description",
+				"cmd": "frappe.client.set_value",
+			}
+		)
+
+		result = execute_cmd("frappe.client.set_value")
+		self.assertEqual(result.get("description"), "updated description")
+		self.assertEqual(result.get("priority"), "Low")  # Other fields should remain unchanged
+
+		# Test multiple field update using PATCH with JSON
+		frappe.local.form_dict = frappe._dict(
+			{
+				"doctype": "ToDo",
+				"name": todo.name,
+				"fieldname": frappe.as_json({"description": "patch updated", "priority": "High"}),
+				"cmd": "frappe.client.set_value",
+			}
+		)
+
+		result = execute_cmd("frappe.client.set_value")
+		self.assertEqual(result.get("description"), "patch updated")
+		self.assertEqual(result.get("priority"), "High")
+
+		# Cleanup
+		frappe.delete_doc("ToDo", todo.name)
+
+	def test_save_with_patch_method(self):
+		"""Test that save endpoint also accepts PATCH method"""
+		from frappe.client import save
+		from frappe.handler import execute_cmd
+
+		# Create a test document
+		todo = frappe.get_doc(doctype="ToDo", description="test", priority="Low").insert()
+
+		frappe.set_user("Administrator")
+		frappe.local.request = frappe._dict()
+		frappe.local.request.method = "PATCH"
+
+		# Test PATCH with full doc (backward compatible)
+		updated_doc = {
+			"doctype": "ToDo",
+			"name": todo.name,
+			"description": "updated via patch",
+			"priority": "Medium",
+		}
+
+		frappe.local.form_dict = frappe._dict({"doc": frappe.as_json(updated_doc), "cmd": "frappe.client.save"})
+
+		result = execute_cmd("frappe.client.save")
+		self.assertEqual(result.get("description"), "updated via patch")
+		self.assertEqual(result.get("priority"), "Medium")
+
+		# Cleanup
+		frappe.delete_doc("ToDo", todo.name)

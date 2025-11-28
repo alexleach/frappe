@@ -517,6 +517,14 @@ $.extend(frappe.model, {
 					doc.__unedited = false;
 				}
 
+				// Track changed fields for PATCH support
+				if (!doc.__islocal) {
+					if (!doc.__changed_fields) {
+						doc.__changed_fields = new Set();
+					}
+					doc.__changed_fields.add(key);
+				}
+
 				doc[key] = value;
 				tasks.push(() => frappe.model.trigger(key, value, doc, skip_dirty_trigger));
 			} else {
@@ -528,6 +536,21 @@ $.extend(frappe.model, {
 		});
 
 		return frappe.run_serially(tasks);
+	},
+
+	get_changed_fields: function (doc) {
+		/* help: Get the set of changed field names for a document */
+		if (!doc.__changed_fields) {
+			return new Set();
+		}
+		return doc.__changed_fields;
+	},
+
+	clear_changed_fields: function (doc) {
+		/* help: Clear the set of changed field names after save */
+		if (doc.__changed_fields) {
+			delete doc.__changed_fields;
+		}
 	},
 
 	on: function (doctype, fieldname, fn) {
