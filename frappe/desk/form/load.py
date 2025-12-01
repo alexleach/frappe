@@ -21,11 +21,17 @@ if typing.TYPE_CHECKING:
 
 
 @frappe.whitelist()
-def getdoc(doctype, name):
+def getdoc(doctype, name, child_limit=None, child_offset=None, lazy_docinfo=False):
 	"""
 	Loads a doclist for a given document. This method is called directly from the client.
 	Requries "doctype", "name" as form variables.
 	Will also call the "onload" method on the document.
+	
+	:param doctype: DocType of the document to load
+	:param name: Name of the document to load
+	:param child_limit: Limit number of child table rows returned (for lazy loading)
+	:param child_offset: Offset for child table rows (for pagination)
+	:param lazy_docinfo: If True, only load essential docinfo (permissions), not timeline data
 	"""
 
 	if not (doctype and name):
@@ -48,15 +54,81 @@ def getdoc(doctype, name):
 	run_onload(doc)
 	doc.apply_fieldlevel_read_permissions()
 
+	# Apply child table pagination if requested
+	if child_limit is not None:
+		_apply_child_table_pagination(doc, child_limit, child_offset)
+
 	# add file list
 	doc.add_viewed()
-	get_docinfo(doc)
+	
+	# Load docinfo based on lazy_docinfo flag
+	if lazy_docinfo:
+		get_docinfo_minimal(doc)
+	else:
+		get_docinfo(doc)
 
 	doc.add_seen()
 	set_link_titles(doc)
 	if frappe.response.docs is None:
 		frappe.local.response = _dict({"docs": []})
 	frappe.response.docs.append(doc)
+
+
+def _apply_child_table_pagination(doc, limit, offset=None):
+	"""Apply pagination to child tables for lazy loading.
+	
+	:param doc: Document object
+	:param limit: Maximum number of rows to return per child table
+	:param offset: Starting position for pagination (default 0)
+	"""
+	limit = frappe.parse_json(limit) if isinstance(limit, str) else limit
+	offset = frappe.parse_json(offset) if isinstance(offset, str) else (offset or 0)
+	
+	# Get all table fields from the document
+	for fieldname in doc._table_fieldnames:
+		children = getattr(doc, fieldname, None) or []
+		if children:
+			# Store total count for client to know if there are more rows
+			total_count = len(children)
+			
+			# Apply pagination
+			paginated_children = children[offset:offset + limit]
+			
+			# Replace with paginated subset
+			setattr(doc, fieldname, paginated_children)
+			
+			# Store metadata about pagination in __onload
+			if not hasattr(doc, '__onload'):
+				doc.__onload = frappe._dict()
+			if not doc.__onload.get('child_table_counts'):
+				doc.__onload.child_table_counts = {}
+			
+			doc.__onload.child_table_counts[fieldname] = {
+				'total': total_count,
+				'loaded': len(paginated_children),
+				'offset': offset,
+				'has_more': (offset + limit) < total_count
+			}
+
+
+def get_docinfo_minimal(doc):
+	"""Load only essential docinfo (permissions) without heavy timeline data.
+	
+	This is used when lazy_docinfo=True to reduce initial page load.
+	Timeline data (comments, attachments, etc.) can be loaded separately.
+	"""
+	docinfo = frappe._dict(user_info={})
+	
+	docinfo.update({
+		"doctype": doc.doctype,
+		"name": doc.name,
+		"permissions": get_doc_permissions(doc),
+		"is_document_followed": is_document_followed(doc.doctype, doc.name, frappe.session.user),
+		"custom_perm_types": get_doctype_ptype_map().get(doc.doctype, []),
+	})
+	
+	update_user_info(docinfo)
+	frappe.response["docinfo"] = docinfo
 
 
 @frappe.whitelist()
@@ -493,3 +565,129 @@ def get_user_info_for_viewers(users):
 		frappe.utils.add_user_info(user, user_info)
 
 	return user_info
+
+
+# Lazy-loading endpoints for docinfo components
+
+@frappe.whitelist()
+def get_docinfo_comments(doctype, name):
+	"""Load comments for a document (lazy-loaded)."""
+	doc = frappe.get_lazy_doc(doctype, name)
+	doc.check_permission("read")
+	
+	docinfo = frappe._dict(user_info={})
+	add_comments(doc, docinfo)
+	update_user_info(docinfo)
+	
+	return docinfo
+
+
+@frappe.whitelist()
+def get_docinfo_attachments(doctype, name):
+	"""Load attachments for a document (lazy-loaded)."""
+	doc = frappe.get_lazy_doc(doctype, name)
+	doc.check_permission("read")
+	
+	return get_attachments(doctype, name)
+
+
+@frappe.whitelist()
+def get_docinfo_versions(doctype, name):
+	"""Load version history for a document (lazy-loaded)."""
+	doc = frappe.get_lazy_doc(doctype, name)
+	doc.check_permission("read")
+	
+	return get_versions(doc)
+
+
+@frappe.whitelist()
+def get_docinfo_assignments(doctype, name):
+	"""Load assignments for a document (lazy-loaded)."""
+	doc = frappe.get_lazy_doc(doctype, name)
+	doc.check_permission("read")
+	
+	return get_assignments(doctype, name)
+
+
+@frappe.whitelist()
+def get_docinfo_timeline(doctype, name):
+	"""Load timeline data (communications, milestones, etc.) for a document (lazy-loaded)."""
+	from frappe.share import _get_users as get_docshares
+	
+	doc = frappe.get_lazy_doc(doctype, name)
+	doc.check_permission("read")
+	
+	all_communications = _get_communications(doc.doctype, doc.name, limit=21)
+	automated_messages = [
+		msg for msg in all_communications if msg["communication_type"] == "Automated Message"
+	]
+	communications_except_auto_messages = [
+		msg for msg in all_communications if msg["communication_type"] != "Automated Message"
+	]
+	
+	timeline_data = frappe._dict({
+		"communications": communications_except_auto_messages,
+		"automated_messages": automated_messages,
+		"shared": get_docshares(doc),
+		"views": get_view_logs(doc),
+		"additional_timeline_content": get_additional_timeline_content(doc.doctype, doc.name),
+		"milestones": get_milestones(doc.doctype, doc.name),
+		"tags": get_tags(doc.doctype, doc.name),
+		"document_email": get_document_email(doc.doctype, doc.name),
+		"user_info": {}
+	})
+	
+	# Add user info for timeline items
+	users = set()
+	users.update(d.get('sender') for d in timeline_data.communications if d.get('sender'))
+	users.update(d.get('user') for d in timeline_data.shared if d.get('user'))
+	users.update(d.get('owner') for d in timeline_data.views if d.get('owner'))
+	frappe.utils.add_user_info(users, timeline_data.user_info)
+	
+	return timeline_data
+
+
+@frappe.whitelist()
+def get_child_table_rows(doctype, name, fieldname, limit=20, offset=0):
+	"""Load additional rows from a child table (for pagination).
+	
+	:param doctype: Parent doctype
+	:param name: Parent document name
+	:param fieldname: Child table fieldname
+	:param limit: Number of rows to return
+	:param offset: Starting position
+	"""
+	doc = frappe.get_lazy_doc(doctype, name)
+	doc.check_permission("read")
+	
+	# Get the child table field
+	meta = frappe.get_meta(doctype)
+	df = meta.get_field(fieldname)
+	
+	if not df or df.fieldtype not in frappe.model.table_fields:
+		frappe.throw(_("Invalid child table field"))
+	
+	# Get child records with pagination
+	child_doctype = df.options
+	children = frappe.get_all(
+		child_doctype,
+		filters={"parent": name, "parenttype": doctype, "parentfield": fieldname},
+		fields=["*"],
+		order_by="idx",
+		limit_start=frappe.utils.cint(offset),
+		limit_page_length=frappe.utils.cint(limit)
+	)
+	
+	# Get total count
+	total_count = frappe.db.count(
+		child_doctype,
+		{"parent": name, "parenttype": doctype, "parentfield": fieldname}
+	)
+	
+	return {
+		"rows": children,
+		"total": total_count,
+		"loaded": len(children),
+		"offset": frappe.utils.cint(offset),
+		"has_more": (frappe.utils.cint(offset) + frappe.utils.cint(limit)) < total_count
+	}
