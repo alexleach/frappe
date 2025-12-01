@@ -164,7 +164,7 @@ def get_single_value(doctype, field):
 	return frappe.db.get_single_value(doctype, field)
 
 
-@frappe.whitelist(methods=["POST", "PUT"])
+@frappe.whitelist(methods=["POST", "PUT", "PATCH"])
 def set_value(doctype, name, fieldname, value=None):
 	"""Set a value using get_doc, group of values
 
@@ -226,11 +226,14 @@ def insert_many(docs=None):
 	return [insert_doc(doc).name for doc in docs]
 
 
-@frappe.whitelist(methods=["POST", "PUT"])
+@frappe.whitelist(methods=["POST", "PUT", "PATCH"])
 def save(doc):
 	"""Update (save) an existing document
 
-	:param doc: JSON or dict object with the properties of the document to be updated"""
+	:param doc: JSON or dict object with the properties of the document to be updated
+	
+	When using PATCH method, the doc should include doctype, name, and only the fields to be updated.
+	For POST/PUT, the full document should be sent as before."""
 	if isinstance(doc, str):
 		doc = json.loads(doc)
 
