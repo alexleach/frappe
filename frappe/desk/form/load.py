@@ -24,7 +24,7 @@ if typing.TYPE_CHECKING:
 def getdoc(doctype, name, child_limit=None, child_offset=None, lazy_docinfo=False):
 	"""
 	Loads a doclist for a given document. This method is called directly from the client.
-	Requries "doctype", "name" as form variables.
+	Requires "doctype", "name" as form variables.
 	Will also call the "onload" method on the document.
 	
 	:param doctype: DocType of the document to load
@@ -544,16 +544,17 @@ def send_link_titles(link_titles):
 def update_user_info(docinfo):
 	users = set()
 
-	users.update(d.sender for d in docinfo.communications)
-	users.update(d.user for d in docinfo.shared)
-	users.update(d.owner for d in docinfo.assignments)
-	users.update(d.owner for d in docinfo.views)
-	users.update(d.owner for d in docinfo.workflow_logs)
-	users.update(d.owner for d in docinfo.like_logs)
-	users.update(d.owner for d in docinfo.info_logs)
-	users.update(d.owner for d in docinfo.attachment_logs)
-	users.update(d.owner for d in docinfo.assignment_logs)
-	users.update(d.owner for d in docinfo.comments)
+	# Safely access fields that may not exist in minimal docinfo
+	users.update(d.sender for d in docinfo.get('communications', []))
+	users.update(d.user for d in docinfo.get('shared', []))
+	users.update(d.owner for d in docinfo.get('assignments', []))
+	users.update(d.owner for d in docinfo.get('views', []))
+	users.update(d.owner for d in docinfo.get('workflow_logs', []))
+	users.update(d.owner for d in docinfo.get('like_logs', []))
+	users.update(d.owner for d in docinfo.get('info_logs', []))
+	users.update(d.owner for d in docinfo.get('attachment_logs', []))
+	users.update(d.owner for d in docinfo.get('assignment_logs', []))
+	users.update(d.owner for d in docinfo.get('comments', []))
 
 	frappe.utils.add_user_info(users, docinfo.user_info)
 
