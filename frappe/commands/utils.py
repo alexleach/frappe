@@ -676,7 +676,7 @@ def console(context: CliCtxObj, autoreload=False):
 
 	for app in list(all_apps):
 		try:
-			locals()[app] = __import__(app)
+			terminal.user_ns[app] = __import__(app)
 		except ModuleNotFoundError:
 			failed_to_import.append(app)
 			all_apps.remove(app)
@@ -696,7 +696,6 @@ def console(context: CliCtxObj, autoreload=False):
 
 	terminal.colors = "neutral"
 	terminal.display_banner = False
-	terminal.user_ns.update(locals())
 	terminal.default_user_namespaces = False
 	terminal()
 
