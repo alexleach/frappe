@@ -665,7 +665,7 @@ def console(context: CliCtxObj, autoreload=False):
 
 	register(_console_cleanup)
 
-	terminal = InteractiveShellEmbed.instance()
+	terminal = InteractiveShellEmbed.instance(user_ns={})
 	if autoreload:
 		terminal.extension_manager.load_extension("autoreload")
 		terminal.run_line_magic("autoreload", "2")
@@ -696,7 +696,6 @@ def console(context: CliCtxObj, autoreload=False):
 
 	terminal.colors = "neutral"
 	terminal.display_banner = False
-	terminal.default_user_namespaces = False
 	terminal()
 
 
