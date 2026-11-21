@@ -464,10 +464,17 @@ frappe.views.Calendar = class Calendar {
 				)
 			),
 		];
+		// unconverted events are stored as shown, so the range spans both readings of its bounds
+		const [starts, ends] = [start, end].map((date) =>
+			[
+				this.get_system_datetime(date),
+				this.get_system_datetime(date, !this.field_map.convertToUserTz),
+			].sort()
+		);
 		var args = {
 			doctype: this.doctype,
-			start: this.get_system_datetime(start),
-			end: this.get_system_datetime(end),
+			start: starts[0],
+			end: ends[1],
 			fields,
 			filters: this.list_view.filter_area.get(),
 			field_map: this.field_map,
