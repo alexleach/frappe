@@ -304,7 +304,7 @@ frappe.views.Calendar = class Calendar {
 	}
 
 	get_system_datetime(date, convert_to_user_tz = true) {
-		const datetime = frappe.datetime.get_datetime_as_string(date);
+		const datetime = moment(date).format(frappe.defaultDatetimeFormat);
 		return convert_to_user_tz
 			? frappe.datetime.convert_to_system_tz(datetime, true)
 			: datetime;
