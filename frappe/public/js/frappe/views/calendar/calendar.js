@@ -169,6 +169,7 @@ frappe.views.Calendar = class Calendar {
 	make() {
 		this.$wrapper = this.parent;
 		this.make_toolbar();
+		this.make_time_zone_alert();
 		// no horizontal padding of its own — the view container's rail is the
 		// alignment edge for the toolbar, the grid and the footnote alike
 		this.$cal = $("<div id='fc-calendar-wrapper' class='pt-3'>").appendTo(this.$wrapper);
@@ -255,6 +256,27 @@ frappe.views.Calendar = class Calendar {
 			this.view_button_group.$el
 		);
 		this.$wrapper.append(this.$toolbar);
+	}
+
+	make_time_zone_alert() {
+		const user_time_zone = frappe.boot.time_zone?.user;
+		if (!user_time_zone || moment().utcOffset() === moment().tz(user_time_zone).utcOffset()) {
+			return;
+		}
+		frappe.ui
+			.alert({
+				title: __("Times are shown in your time zone, {0}. This device is set to {1}.", [
+					user_time_zone,
+					Intl.DateTimeFormat().resolvedOptions().timeZone,
+				]),
+				theme: "blue",
+				primary_action: {
+					label: __("Change Time Zone"),
+					onclick: () => frappe.ui.open_user_settings("preferences"),
+				},
+				css_class: "mt-3",
+			})
+			.appendTo(this.$wrapper);
 	}
 
 	// inline air-datepicker (the desk-standard picker) inside the title
