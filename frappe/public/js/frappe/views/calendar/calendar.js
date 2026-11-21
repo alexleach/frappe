@@ -303,11 +303,14 @@ frappe.views.Calendar = class Calendar {
 		});
 	}
 
-	get_system_datetime(date) {
-		return frappe.datetime.convert_to_system_tz(
-			frappe.datetime.get_datetime_as_string(date),
-			true
-		);
+	get_system_datetime(date, convert_to_user_tz = true) {
+		const datetime = frappe.datetime.get_datetime_as_string(date);
+		return convert_to_user_tz
+			? frappe.datetime.convert_to_system_tz(datetime, true)
+			: datetime;
+	}
+	converts_to_user_tz(d) {
+		return !this.field_map.convertToUserTz || Boolean(d[this.field_map.convertToUserTz]);
 	}
 	setup_options(defaults) {
 		var me = this;
@@ -404,9 +407,11 @@ frappe.views.Calendar = class Calendar {
 				}
 
 				var event = frappe.model.get_new_doc(me.doctype);
+				const convert_to_user_tz = me.converts_to_user_tz(event);
 
-				event[me.field_map.start] = me.get_system_datetime(info.start);
-				if (me.field_map.end) event[me.field_map.end] = me.get_system_datetime(info.end);
+				event[me.field_map.start] = me.get_system_datetime(info.start, convert_to_user_tz);
+				if (me.field_map.end)
+					event[me.field_map.end] = me.get_system_datetime(info.end, convert_to_user_tz);
 
 				if (seconds >= 86400000) {
 					if (allDay) {
@@ -414,7 +419,10 @@ frappe.views.Calendar = class Calendar {
 						event[me.field_map.allDay] = 1;
 					}
 					// incase of all day or multiple day events -1 sec
-					event[me.field_map.end] = me.get_system_datetime(info.end - 1);
+					event[me.field_map.end] = me.get_system_datetime(
+						info.end - 1,
+						convert_to_user_tz
+					);
 				}
 				frappe.set_route("Form", me.doctype, event.name);
 			},
@@ -500,7 +508,7 @@ frappe.views.Calendar = class Calendar {
 				d.allDay = 1;
 			}
 
-			if (!me.field_map.convertToUserTz) d.convertToUserTz = 1;
+			d.convertToUserTz = me.converts_to_user_tz(d);
 
 			// convert to user tz
 			if (d.convertToUserTz) {
@@ -646,8 +654,9 @@ frappe.views.Calendar = class Calendar {
 		var args = {
 			name: event.id,
 		};
+		const convert_to_user_tz = event.extendedProps.convertToUserTz;
 
-		args[this.field_map.start] = me.get_system_datetime(event.start);
+		args[this.field_map.start] = me.get_system_datetime(event.start, convert_to_user_tz);
 
 		if (this.field_map.allDay) {
 			args[this.field_map.allDay] = event.end - event.start === 86400000 ? 1 : 0;
@@ -658,9 +667,12 @@ frappe.views.Calendar = class Calendar {
 				event.end = event.start.add(1, "hour");
 			}
 
-			args[this.field_map.end] = me.get_system_datetime(event.end);
+			args[this.field_map.end] = me.get_system_datetime(event.end, convert_to_user_tz);
 			if (args[this.field_map.allDay]) {
-				args[this.field_map.end] = me.get_system_datetime(new Date(event.end - 1000));
+				args[this.field_map.end] = me.get_system_datetime(
+					new Date(event.end - 1000),
+					convert_to_user_tz
+				);
 			}
 		}
 
